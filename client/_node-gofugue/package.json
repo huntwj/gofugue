@@ -1,0 +1,11 @@
+{
+  "name": "gofugue",
+  "version": "1.0.0",
+  "description": "Gofugue specific libraries to communicate with the parent Gofugue process using the golang node-child package",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Wil Hunt <huntwj@gmail.com>",
+  "license": "GPL-3.0"
+}
