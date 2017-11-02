@@ -6,7 +6,7 @@ import (
 )
 
 var weakCandidate = regexp.MustCompile(">")
-var ignoreRegex = regexp.MustCompile("(<Sent: .* >|^<|^ >|Press <Return> to continue)")
+var ignoreRegex = regexp.MustCompile(`(<Sent: .* >|^<|^ >|Press <Return> to continue|==>|^(\^\[33m)?\w+ (chats|narrates|says|tells you))`)
 
 type substring struct {
 	start, end int
@@ -26,6 +26,7 @@ type PromptData struct {
 	IsLit    bool
 	IsRiding bool
 	Health   string
+	Spell    *string
 	Moves    string
 	Combat   *Combat
 }
@@ -64,6 +65,11 @@ func Parse(str string) Line {
 		}
 
 		line.Prompt.Health = line.ss(priMyHealth)
+
+		if spell := line.ss(priMySpell); spell != "" {
+			line.Prompt.Spell = &spell
+		}
+
 		line.Prompt.Moves = line.ss(priMyMoves)
 
 		if targetName := line.ss(priTargetName); targetName != "" {
@@ -89,11 +95,13 @@ func Parse(str string) Line {
 }
 
 var allHealthPattern = `(Healthy|Scratched|Hurt|Wounded|Battered|Beaten|Critical|Incapacitated|Dead\?)`
+var allSpellPattern = `(Bursting|Full|Strong|Good|Fading|Trickling)`
 var allMovementPattern = `(Full|Fresh|Strong|Winded|Weary|Tiring|Haggard)`
 var otherPlayerOrMobPattern = `([\w \-,]+)`
 var promptRegex = regexp.MustCompile(
 	`^([\*o]) (R )?HP:` + allHealthPattern +
-		` MV:` + allMovementPattern +
+		`(?: SP:` + allSpellPattern +
+		`)? MV:` + allMovementPattern +
 		`(?:` +
 		`(?: - ` + otherPlayerOrMobPattern + `: ` + allHealthPattern + `)?` +
 		` - ` + otherPlayerOrMobPattern + `: ` + allHealthPattern +
@@ -103,6 +111,7 @@ const (
 	priIsLit = 2 * (1 + iota)
 	priIsRiding
 	priMyHealth
+	priMySpell
 	priMyMoves
 	priTankName
 	priTankHealth
