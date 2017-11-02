@@ -26,9 +26,16 @@ func TestSimpleString(t *testing.T) {
 	if observed := line.PromptEnd; observed != 0 {
 		t.Errorf("Simple text line should not have prompt. Expected 0 but got %d\n", observed)
 	}
+	if line.Prompt != nil {
+		t.Errorf("Simple string should not have prompt data")
+	}
+	if line.PromptEnd != 0 {
+		t.Errorf("Simple string should have 0 PromptEnd")
+	}
 }
 
-func testIsPromptLine(t *testing.T, promptLine string) {
+func testIsPromptLine(t *testing.T, promptLine string) prompt.Line {
+	t.Helper()
 	rest := "yet more text on the line"
 	raw := promptLine + rest
 	line := prompt.Parse(raw)
@@ -41,47 +48,211 @@ func testIsPromptLine(t *testing.T, promptLine string) {
 		t.Errorf("Prompt regex: %s\n", prompt.PromptRegex())
 		t.Errorf("Expected '%d' for prompt but got '%d'.", promptLen, observed)
 	}
+	if line.Prompt == nil {
+		t.Errorf("Line: %s\n", raw)
+		t.Errorf("Prompt regex: %s\n", prompt.PromptRegex())
+		t.Error("Expected non-nil prompt data.\n")
+	}
+
+	return line
 }
+
+func assertPromptLit(t *testing.T, line prompt.Line, isLit bool) {
+	t.Helper()
+	if line.Prompt.IsLit != isLit {
+		t.Errorf("Room should be lit? %v\n", line.Raw)
+	}
+}
+
+func assertPromptRiding(t *testing.T, line prompt.Line, expected bool) {
+	t.Helper()
+
+	if line.Prompt.IsRiding != expected {
+		t.Errorf("Riding mismatch. Expected '%t' observed '%t'\n", expected, !expected)
+	}
+}
+
+func assertPromptHealth(t *testing.T, line prompt.Line, expected string) {
+	t.Helper()
+	observed := line.Prompt.Health
+	if observed != expected {
+		t.Errorf("Health mismatch. Expected '%s' but found '%s'", expected, observed)
+	}
+}
+
+func assertPromptMoves(t *testing.T, line prompt.Line, expected string) {
+	t.Helper()
+	observed := line.Prompt.Moves
+	if observed != expected {
+		t.Errorf("Moves mismatch. Expected '%s' but found '%s'", expected, observed)
+	}
+}
+
+func assertPromptCombat(t *testing.T, line prompt.Line, inCombat bool) {
+	t.Helper()
+
+	if (line.Prompt.Combat == nil) == inCombat {
+
+		t.Errorf("Combat mismatch. Expected %t but observed %t.\n", inCombat, !inCombat)
+	}
+}
+
+func assertPromptTargetName(t *testing.T, line prompt.Line, expected string) {
+	t.Helper()
+
+	if line.Prompt.Combat == nil {
+		t.Errorf("Expecting target name but no combat data found")
+	} else {
+		observed := line.Prompt.Combat.Target.Name
+		if observed != expected {
+			t.Errorf("Expected target name '%s' but observed '%s'", expected, observed)
+		}
+	}
+}
+
+func assertPromptTargetHealth(t *testing.T, line prompt.Line, expected string) {
+	t.Helper()
+
+	if line.Prompt.Combat == nil {
+		t.Errorf("Expecting target health but no combat data found")
+	} else {
+		observed := line.Prompt.Combat.Target.Health
+		if observed != expected {
+			t.Errorf("Expected target health '%s' but observed '%s'", expected, observed)
+		}
+	}
+}
+
+func assertPromptTank(t *testing.T, line prompt.Line, expected bool) {
+	if line.Prompt.Combat == nil {
+		t.Errorf("Expecting tanked combat but no combat data found")
+	} else {
+		observed := line.Prompt.Combat.Tank != nil
+		if observed != expected {
+			t.Errorf("Expected combat with tank '%t' but observed '%t'", expected, observed)
+		}
+	}
+}
+
+func assertPromptTankName(t *testing.T, line prompt.Line, expected string) {
+	if line.Prompt.Combat == nil {
+		t.Errorf("Expecting tanked combat but no combat data found")
+	} else {
+		if line.Prompt.Combat.Tank == nil {
+			t.Errorf("Expecting tanked combat but no tank data found")
+		}
+
+		observed := line.Prompt.Combat.Tank.Name
+		if observed != expected {
+			t.Errorf("Expected tank name '%s' but observed '%s'", expected, observed)
+		}
+	}
+}
+
+func assertPromptTankHealth(t *testing.T, line prompt.Line, expected string) {
+	if line.Prompt.Combat == nil {
+		t.Errorf("Expecting tanked combat but no combat data found")
+	} else {
+		if line.Prompt.Combat.Tank == nil {
+			t.Errorf("Expecting tanked combat but no tank data found")
+		}
+
+		observed := line.Prompt.Combat.Tank.Health
+		if observed != expected {
+			t.Errorf("Expected tank health '%s' but observed '%s'", expected, observed)
+		}
+	}
+}
+
 func TestPromptString(t *testing.T) {
 	t.Parallel()
 
 	prompt := "* HP:Healthy MV:Strong > "
-	testIsPromptLine(t, prompt)
+	line := testIsPromptLine(t, prompt)
+
+	assertPromptLit(t, line, true)
+	assertPromptRiding(t, line, false)
+	assertPromptHealth(t, line, "Healthy")
+	assertPromptMoves(t, line, "Strong")
+	assertPromptCombat(t, line, false)
 }
 
 func TestPromptStringNoLight(t *testing.T) {
 	t.Parallel()
 
 	prompt := "o HP:Healthy MV:Strong > "
-	testIsPromptLine(t, prompt)
+	line := testIsPromptLine(t, prompt)
+
+	assertPromptLit(t, line, false)
+	assertPromptRiding(t, line, false)
+	assertPromptHealth(t, line, "Healthy")
+	assertPromptMoves(t, line, "Strong")
+	assertPromptCombat(t, line, false)
 }
 
 func TestRidingPrompt(t *testing.T) {
 	t.Parallel()
 
 	prompt := "o R HP:Healthy MV:Strong > "
-	testIsPromptLine(t, prompt)
+	line := testIsPromptLine(t, prompt)
+
+	assertPromptLit(t, line, false)
+	assertPromptRiding(t, line, true)
+	assertPromptHealth(t, line, "Healthy")
+	assertPromptMoves(t, line, "Strong")
+	assertPromptCombat(t, line, false)
 }
 
 func TestCombatWithoutTank(t *testing.T) {
 	t.Parallel()
 
 	prompt := "* R HP:Healthy MV:Full - the ancient tree: Critical > "
-	testIsPromptLine(t, prompt)
+	line := testIsPromptLine(t, prompt)
+
+	assertPromptLit(t, line, true)
+	assertPromptRiding(t, line, true)
+	assertPromptHealth(t, line, "Healthy")
+	assertPromptMoves(t, line, "Full")
+	assertPromptCombat(t, line, true)
+	assertPromptTargetName(t, line, "the ancient tree")
+	assertPromptTargetHealth(t, line, "Critical")
+	assertPromptTank(t, line, false)
 }
 
 func TestCombatWithTank(t *testing.T) {
 	t.Parallel()
 
 	prompt := "* R HP:Healthy MV:Fresh - Dal: Scratched - a wild dog: Beaten > "
-	testIsPromptLine(t, prompt)
+	line := testIsPromptLine(t, prompt)
+
+	assertPromptLit(t, line, true)
+	assertPromptRiding(t, line, true)
+	assertPromptHealth(t, line, "Healthy")
+	assertPromptMoves(t, line, "Fresh")
+	assertPromptCombat(t, line, true)
+	assertPromptTargetName(t, line, "a wild dog")
+	assertPromptTargetHealth(t, line, "Beaten")
+	assertPromptTank(t, line, true)
+	assertPromptTankName(t, line, "Dal")
+	assertPromptTankHealth(t, line, "Scratched")
 }
 
 func TestComplexCombat(t *testing.T) {
 	t.Parallel()
 
-	prompt := "* R HP:Scratched MV:Full - Dal: Healthy - a grayish-green moss: Critical > "
-	testIsPromptLine(t, prompt)
+	prompt := "o R HP:Scratched MV:Full - Dal: Healthy - a grayish-green moss: Critical > "
+	line := testIsPromptLine(t, prompt)
+
+	assertPromptLit(t, line, false)
+	assertPromptRiding(t, line, true)
+	assertPromptHealth(t, line, "Scratched")
+	assertPromptMoves(t, line, "Full")
+	assertPromptCombat(t, line, true)
+	assertPromptTargetName(t, line, "a grayish-green moss")
+	assertPromptTargetHealth(t, line, "Critical")
+	assertPromptTank(t, line, true)
+	assertPromptTankName(t, line, "Dal")
+	assertPromptTankHealth(t, line, "Healthy")
 }
 
 func TestPromptAllHealths(t *testing.T) {
@@ -101,7 +272,13 @@ func TestPromptAllHealths(t *testing.T) {
 
 	for _, health := range allHealths {
 		prompt := "o HP:" + health + " MV:Strong > "
-		testIsPromptLine(t, prompt)
+		line := testIsPromptLine(t, prompt)
+
+		assertPromptLit(t, line, false)
+		assertPromptRiding(t, line, false)
+		assertPromptHealth(t, line, health)
+		assertPromptMoves(t, line, "Strong")
+		assertPromptCombat(t, line, false)
 	}
 }
 
@@ -119,7 +296,13 @@ func TestPromptAllMovements(t *testing.T) {
 
 	for _, movement := range allMovements {
 		prompt := "o HP:Healthy MV:" + movement + " > "
-		testIsPromptLine(t, prompt)
+		line := testIsPromptLine(t, prompt)
+
+		assertPromptLit(t, line, false)
+		assertPromptRiding(t, line, false)
+		assertPromptHealth(t, line, "Healthy")
+		assertPromptMoves(t, line, movement)
+		assertPromptCombat(t, line, false)
 	}
 }
 
