@@ -12,17 +12,30 @@ type substring struct {
 	start, end int
 }
 
+// A Combatant is someone or something the prompt tells us is in combat with
+// or against us. It consists of a Name, which may include spaces and other
+// 'weird' characters, and a Health level, which is a standard one word
+// indicator of his/her/its health.
 type Combatant struct {
 	Name   string
 	Health string
 }
 
+// Combat keeps track of the combatants as shown by the prompt. When in combat,
+// the prompt will always show at least the player's and his/her target's
+// Combatant info. If the target is attacking someone other than the player
+// the Tank Combatant will indicate who or what is tanking for you.
 type Combat struct {
 	Target Combatant
 	Tank   *Combatant
 }
 
-type PromptData struct {
+// The Info structure keeps track of all the standard information in the
+// prompt. Pieces of information that may or may not be present are handled
+// as pointers and are nil when the prompt does not contain that information.
+// For some information, such as IsRiding, the lack of that information
+// actually indicates a falsey value, so a pointer is not used in those cases.
+type Info struct {
 	IsLit    bool
 	IsRiding bool
 	Health   string
@@ -31,67 +44,72 @@ type PromptData struct {
 	Combat   *Combat
 }
 
-type Line struct {
-	Raw       string
-	PromptEnd int
-	Prompt    *PromptData
-	matches   []int
+type line struct {
+	raw        string
+	promptInfo *Info
+	promptEnd  int
+	matches    []int
 }
 
-func (line *Line) ss(idx int) string {
-	if line.matches[idx] == -1 {
+func (l line) ss(idx int) string {
+	if l.matches[idx] == -1 {
 		return ""
 	}
-	return line.Raw[line.matches[idx]:line.matches[idx+1]]
+	return l.raw[l.matches[idx]:l.matches[idx+1]]
 }
 
-func Parse(str string) Line {
-	line := Line{
-		Raw:    str,
-		Prompt: nil,
-	}
-	line.matches = promptRegex.FindStringSubmatchIndex(str)
-	if line.matches != nil {
-		line.Prompt = &PromptData{}
-		line.PromptEnd = line.matches[1]
+// Parse finds a Prompt in a string and returns its data. If no prompt can be
+// found nil is returned.
+func Parse(str string) (*Info, int) {
+	matches := promptRegex.FindStringSubmatchIndex(str)
 
-		if line.matches[priIsLit] != -1 {
-			lit := line.ss(priIsLit)
-			line.Prompt.IsLit = (lit == "*")
-		}
-
-		if riding := line.ss(priIsRiding); riding != "" {
-			line.Prompt.IsRiding = true
-		}
-
-		line.Prompt.Health = line.ss(priMyHealth)
-
-		if spell := line.ss(priMySpell); spell != "" {
-			line.Prompt.Spell = &spell
-		}
-
-		line.Prompt.Moves = line.ss(priMyMoves)
-
-		if targetName := line.ss(priTargetName); targetName != "" {
-			line.Prompt.Combat = &Combat{}
-			line.Prompt.Combat.Target.Name = targetName
-			line.Prompt.Combat.Target.Health = line.ss(priTargetHealth)
-		}
-
-		if tankName := line.ss(priTankName); tankName != "" {
-			line.Prompt.Combat.Tank = &Combatant{}
-			line.Prompt.Combat.Tank.Name = tankName
-			line.Prompt.Combat.Tank.Health = line.ss(priTankHealth)
-		}
-	} else {
+	if matches == nil {
 		matches := weakCandidate.FindStringIndex(str)
 		if matches != nil && ignoreRegex.FindStringIndex(str) == nil {
 			fmt.Printf("%s failed prompt...\n", str)
 			fmt.Println("But weak candidate passed...")
 		}
+
+		return nil, 0
 	}
 
-	return line
+	l := line{
+		raw:        str,
+		promptInfo: &Info{},
+		promptEnd:  matches[1],
+		matches:    matches,
+	}
+
+	if l.matches[priIsLit] != -1 {
+		lit := l.ss(priIsLit)
+		l.promptInfo.IsLit = (lit == "*")
+	}
+
+	if riding := l.ss(priIsRiding); riding != "" {
+		l.promptInfo.IsRiding = true
+	}
+
+	l.promptInfo.Health = l.ss(priMyHealth)
+
+	if spell := l.ss(priMySpell); spell != "" {
+		l.promptInfo.Spell = &spell
+	}
+
+	l.promptInfo.Moves = l.ss(priMyMoves)
+
+	if targetName := l.ss(priTargetName); targetName != "" {
+		l.promptInfo.Combat = &Combat{}
+		l.promptInfo.Combat.Target.Name = targetName
+		l.promptInfo.Combat.Target.Health = l.ss(priTargetHealth)
+	}
+
+	if tankName := l.ss(priTankName); tankName != "" {
+		l.promptInfo.Combat.Tank = &Combatant{}
+		l.promptInfo.Combat.Tank.Name = tankName
+		l.promptInfo.Combat.Tank.Health = l.ss(priTankHealth)
+	}
+
+	return l.promptInfo, l.promptEnd
 }
 
 var allHealthPattern = `(Healthy|Scratched|Hurt|Wounded|Battered|Beaten|Critical|Incapacitated|Dead\?)`

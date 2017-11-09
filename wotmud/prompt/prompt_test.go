@@ -12,6 +12,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/huntwj/gofugue/wotmud"
 	"github.com/huntwj/gofugue/wotmud/prompt"
 )
 
@@ -19,85 +20,79 @@ func TestSimpleString(t *testing.T) {
 	t.Parallel()
 
 	raw := "This is a simple line"
-	line := prompt.Parse(raw)
-	if line.Raw != raw {
-		t.Error("Raw should always equal input text.")
-	}
-	if observed := line.PromptEnd; observed != 0 {
-		t.Errorf("Simple text line should not have prompt. Expected 0 but got %d\n", observed)
-	}
-	if line.Prompt != nil {
-		t.Errorf("Simple string should not have prompt data")
-	}
-	if line.PromptEnd != 0 {
-		t.Errorf("Simple string should have 0 PromptEnd")
+	info, _ := prompt.Parse(raw)
+	if info != nil {
+		t.Errorf("Simple text line should not have prompt. Expected nil but got %v\n", info)
 	}
 }
 
-func testIsPromptLine(t *testing.T, promptLine string) prompt.Line {
+func testIsPromptLine(t *testing.T, promptLine string) wotmud.Line {
 	t.Helper()
 
 	rest := "yet more text on the line"
 	raw := promptLine + rest
-	line := prompt.Parse(raw)
-	if line.Raw != raw {
-		t.Error("Raw should always equal input text.")
-	}
-	promptLen := len(promptLine)
-	if observed := line.PromptEnd; observed != promptLen {
-		t.Errorf("Line: %s\n", raw)
-		t.Errorf("Prompt regex: %s\n", prompt.PromptRegex())
-		t.Errorf("Expected '%d' for prompt but got '%d'.", promptLen, observed)
-	}
-	if line.Prompt == nil {
+	info, end := prompt.Parse(raw)
+
+	if info == nil {
 		t.Errorf("Line: %s\n", raw)
 		t.Errorf("Prompt regex: %s\n", prompt.PromptRegex())
 		t.Error("Expected non-nil prompt data.\n")
+	} else {
+		promptLen := len(promptLine)
+		if observed := end; observed != promptLen {
+			t.Errorf("Line: %s\n", raw)
+			t.Errorf("Prompt regex: %s\n", prompt.PromptRegex())
+			t.Errorf("Expected '%d' for prompt but got '%d'.", promptLen, observed)
+		}
 	}
 
-	return line
+	return wotmud.Line{
+		Raw:        raw,
+		PromptInfo: info,
+		PromptEnd:  end,
+	}
 }
 
-func assertPromptLit(t *testing.T, line prompt.Line, isLit bool) {
+func assertPromptLit(t *testing.T, line wotmud.Line, isLit bool) {
 	t.Helper()
 
-	if line.Prompt == nil {
+	if line.PromptInfo == nil {
 		t.Errorf("Expected line should be lit or not, but did not find prompt!")
-	} else if line.Prompt.IsLit != isLit {
+	} else if line.PromptInfo.IsLit != isLit {
 		t.Errorf("Room should be lit? %v\n", line.Raw)
 	}
 }
 
-func assertPromptRiding(t *testing.T, line prompt.Line, expected bool) {
+func assertPromptRiding(t *testing.T, line wotmud.Line, expected bool) {
 	t.Helper()
 
-	if line.Prompt == nil {
+	if line.PromptInfo == nil {
 		t.Errorf("Expected line should be riding or not, but did not find prompt!")
-	} else if line.Prompt.IsRiding != expected {
+	} else if line.PromptInfo.IsRiding != expected {
 		t.Errorf("Riding mismatch. Expected '%t' observed '%t'\n", expected, !expected)
 	}
 }
 
-func assertPromptHealth(t *testing.T, line prompt.Line, expected string) {
+func assertPromptHealth(t *testing.T, line wotmud.Line, expected string) {
 	t.Helper()
 
-	if line.Prompt == nil {
+	if line.PromptInfo == nil {
 		t.Errorf("Expected to check player health, but did not find prompt!")
 	} else {
-		observed := line.Prompt.Health
+		observed := line.PromptInfo.Health
 		if observed != expected {
 			t.Errorf("Health mismatch. Expected '%s' but found '%s'", expected, observed)
 		}
 	}
 }
 
-func assertPromptSpell(t *testing.T, line prompt.Line, expected string) {
+func assertPromptSpell(t *testing.T, line wotmud.Line, expected string) {
 	t.Helper()
 
-	if line.Prompt == nil {
+	if line.PromptInfo == nil {
 		t.Errorf("Expected to check player spell power, but did not find prompt!")
 	} else {
-		observed := line.Prompt.Spell
+		observed := line.PromptInfo.Spell
 		if observed == nil {
 			t.Errorf("Expected spell power but found nil")
 		} else if *observed != expected {
@@ -106,106 +101,106 @@ func assertPromptSpell(t *testing.T, line prompt.Line, expected string) {
 	}
 }
 
-func assertPromptMoves(t *testing.T, line prompt.Line, expected string) {
+func assertPromptMoves(t *testing.T, line wotmud.Line, expected string) {
 	t.Helper()
 
-	if line.Prompt == nil {
+	if line.PromptInfo == nil {
 		t.Errorf("Expected to check player moves, but did not find prompt!")
 	} else {
-		observed := line.Prompt.Moves
+		observed := line.PromptInfo.Moves
 		if observed != expected {
 			t.Errorf("Moves mismatch. Expected '%s' but found '%s'", expected, observed)
 		}
 	}
 }
 
-func assertPromptCombat(t *testing.T, line prompt.Line, inCombat bool) {
+func assertPromptCombat(t *testing.T, line wotmud.Line, inCombat bool) {
 	t.Helper()
 
-	if line.Prompt == nil {
+	if line.PromptInfo == nil {
 		t.Errorf("Expected to check combat status, but did not find prompt!")
-	} else if (line.Prompt.Combat == nil) == inCombat {
+	} else if (line.PromptInfo.Combat == nil) == inCombat {
 		t.Errorf("Combat mismatch. Expected %t but observed %t.\n", inCombat, !inCombat)
 	}
 }
 
-func assertPromptTargetName(t *testing.T, line prompt.Line, expected string) {
+func assertPromptTargetName(t *testing.T, line wotmud.Line, expected string) {
 	t.Helper()
 
-	if line.Prompt == nil {
+	if line.PromptInfo == nil {
 		t.Errorf("Expected to check target name, but did not find prompt!")
-	} else if line.Prompt.Combat == nil {
+	} else if line.PromptInfo.Combat == nil {
 		t.Errorf("Expecting target name but no combat data found")
 	} else {
-		observed := line.Prompt.Combat.Target.Name
+		observed := line.PromptInfo.Combat.Target.Name
 		if observed != expected {
 			t.Errorf("Expected target name '%s' but observed '%s'", expected, observed)
 		}
 	}
 }
 
-func assertPromptTargetHealth(t *testing.T, line prompt.Line, expected string) {
+func assertPromptTargetHealth(t *testing.T, line wotmud.Line, expected string) {
 	t.Helper()
 
-	if line.Prompt == nil {
+	if line.PromptInfo == nil {
 		t.Errorf("Expected to check target health, but did not find prompt!")
-	} else if line.Prompt.Combat == nil {
+	} else if line.PromptInfo.Combat == nil {
 		t.Errorf("Expecting target health but no combat data found")
 	} else {
-		observed := line.Prompt.Combat.Target.Health
+		observed := line.PromptInfo.Combat.Target.Health
 		if observed != expected {
 			t.Errorf("Expected target health '%s' but observed '%s'", expected, observed)
 		}
 	}
 }
 
-func assertPromptTank(t *testing.T, line prompt.Line, expected bool) {
+func assertPromptTank(t *testing.T, line wotmud.Line, expected bool) {
 	t.Helper()
 
-	if line.Prompt == nil {
+	if line.PromptInfo == nil {
 		t.Errorf("Expected to check tank exists, but did not find prompt!")
-	} else if line.Prompt.Combat == nil {
+	} else if line.PromptInfo.Combat == nil {
 		t.Errorf("Expecting tanked combat but no combat data found")
 	} else {
-		observed := line.Prompt.Combat.Tank != nil
+		observed := line.PromptInfo.Combat.Tank != nil
 		if observed != expected {
 			t.Errorf("Expected combat with tank '%t' but observed '%t'", expected, observed)
 		}
 	}
 }
 
-func assertPromptTankName(t *testing.T, line prompt.Line, expected string) {
+func assertPromptTankName(t *testing.T, line wotmud.Line, expected string) {
 	t.Helper()
 
-	if line.Prompt == nil {
+	if line.PromptInfo == nil {
 		t.Errorf("Expected to check tank name, but did not find prompt!")
-	} else if line.Prompt.Combat == nil {
+	} else if line.PromptInfo.Combat == nil {
 		t.Errorf("Expecting tanked combat but no combat data found")
 	} else {
-		if line.Prompt.Combat.Tank == nil {
+		if line.PromptInfo.Combat.Tank == nil {
 			t.Errorf("Expecting tanked combat but no tank data found")
 		}
 
-		observed := line.Prompt.Combat.Tank.Name
+		observed := line.PromptInfo.Combat.Tank.Name
 		if observed != expected {
 			t.Errorf("Expected tank name '%s' but observed '%s'", expected, observed)
 		}
 	}
 }
 
-func assertPromptTankHealth(t *testing.T, line prompt.Line, expected string) {
+func assertPromptTankHealth(t *testing.T, line wotmud.Line, expected string) {
 	t.Helper()
 
-	if line.Prompt == nil {
+	if line.PromptInfo == nil {
 		t.Errorf("Expected to check tank health, but did not find prompt!")
-	} else if line.Prompt.Combat == nil {
+	} else if line.PromptInfo.Combat == nil {
 		t.Errorf("Expecting tanked combat but no combat data found")
 	} else {
-		if line.Prompt.Combat.Tank == nil {
+		if line.PromptInfo.Combat.Tank == nil {
 			t.Errorf("Expecting tanked combat but no tank data found")
 		}
 
-		observed := line.Prompt.Combat.Tank.Health
+		observed := line.PromptInfo.Combat.Tank.Health
 		if observed != expected {
 			t.Errorf("Expected tank health '%s' but observed '%s'", expected, observed)
 		}
