@@ -1,0 +1,40 @@
+settings:
+  files:
+    outputs:
+      status: true
+      name: outputs.log
+    logs:
+      status: true
+      name: logs.log
+    errors:
+      status: true
+      name: errors.log
+  legacy:
+    force: false
+    interval: 100ms
+server:
+  status: false
+  open: false
+  host: localhost
+  port: 5001
+schema:
+- name: /Users/wil/.go/src/github.com/huntwj/gofugue
+  path: /Users/wil/.go/src/github.com/huntwj/gofugue
+  commands:
+    vet:
+      status: true
+    fmt:
+      status: true
+    test:
+      status: true
+      args:
+      - ./...
+  watcher:
+    paths:
+    - /
+    extensions:
+    - go
+    ignored_paths:
+    - .git
+    - .realize
+    - vendor
